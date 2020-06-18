@@ -110,8 +110,9 @@
     (when player-1?
       ;; Check player-2 timer. If realized remove client from game.
       (when p2-timer
-        (when (realized? p2-timer)
-          (remove-client uid 2)))
+        (if (realized? p2-timer)
+          (remove-client uid 2)
+          (future-cancel p2-timer)))
       (let [client-future (future (Thread/sleep 2000))]
         (swap! follow-games assoc-in [uid :p1-timer] client-future)
         (swap! follow-games assoc-in [uid :p1-state] ?data)
@@ -120,8 +121,9 @@
     (when player-2?
       ;; If player-1 timer clicks change player-2 to player-1.
       (when p1-timer
-        (when (realized? p1-timer)
-          (remove-client uid 1)))
+        (if (realized? p1-timer)
+          (remove-client uid 1)
+          (future-cancel p1-timer)))
         (let [client-future (future (Thread/sleep 2000))]
           (swap! follow-games assoc-in [uid :p2-timer] client-future)
           (swap! follow-games assoc-in [uid :p2-state] ?data)
@@ -131,9 +133,9 @@
 
 ;; If game has no players delete from follow-games and free uid-num 
 ;; for future games.
-(defmethod event :chsk/uidport-close [{:keys [uid]}]
-  (prn "Game removed" uid)
-  (remove-game uid))
+;;(defmethod event :chsk/uidport-close [{:keys [uid]}]
+;;  (prn "Game removed" uid)
+;;  (remove-game uid))
 
 
 ;;; Router --->
