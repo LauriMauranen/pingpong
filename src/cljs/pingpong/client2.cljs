@@ -1,6 +1,5 @@
 (ns pingpong.client2
-  (:require [taoensso.sente :as sente :refer [cb-success?]]
-            [pingpong.common :refer [starting-state reverse-x]]))
+  (:require [taoensso.sente :as sente :refer [cb-success?]]))
 
 
 (let [{:keys [chsk ch-recv send-fn state]}
@@ -16,8 +15,12 @@
 (defonce opponent-state (atom {:host? nil
                                :game-on false
                                :ball [0 0]
-                               :opponent-bat (:opponent-bat starting-state)
+                               :opponent-bat 0
                                :opponent-bat-dir 0}))
+
+
+(defn reverse-x [v]
+  [(- (first v)) (second v)])
 
 
 (defn send-state-to-server 
@@ -28,8 +31,7 @@
                       player-bat-dir]]
     100 ;; timeout
     (fn [reply]
-;;      (when (not (:host? reply)) (prn reply))
-      (if (cb-success? reply)
+      (when (cb-success? reply)
         (let [{:keys [game-on]} @opponent-state]
           (if game-on
             (swap! opponent-state into reply)
@@ -37,14 +39,13 @@
                                        (assoc :ball [0 0])
                                        (assoc :ball-dir 
                                               [(dec (* 2 (rand-int 2))) 0])
-                                       (assoc :game-on true)))))
-        (prn "callback timeout")))))
+                                       (assoc :game-on true)))))))))
 
 
 (defmulti event :id)
 
 (defmethod event :default [{:keys [event]}]
-  (prn "default client" event))
+  (prn event))
 
 
 ;; When other player leaves make this player host and set game off.

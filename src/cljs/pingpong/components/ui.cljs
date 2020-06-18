@@ -1,11 +1,11 @@
 (ns pingpong.components.ui
   (:require [com.stuartsierra.component :as component]
-            [pingpong.core :refer [render]]))
+            [pingpong.core :refer [render run-game]]))
 
 (defrecord UIComponent []
   component/Lifecycle
   (start [component]
-    (render)
+    (run-game) ;; (render)
     component)
   (stop [component]
     component))

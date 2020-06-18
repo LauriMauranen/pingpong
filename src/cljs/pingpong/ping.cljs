@@ -1,6 +1,5 @@
 (ns pingpong.ping
-  (:require [quil.core :as q :include-macros true]
-            [pingpong.common :refer [reverse-x]]))
+  (:require [quil.core :as q :include-macros true]))
 
 (defn check-bat-player [{:keys [ball ball-dir player-bat ball-speed]} 
                         {:keys [size bat-width bat-height ball-diameter]}]
@@ -36,6 +35,9 @@
 (defn rotate [v angle]  ;; Counter-clockwise with positive angle.
   [(- (* (first v) (q/cos angle)) (* (second v) (q/sin angle)))
    (+ (* (first v) (q/sin angle)) (* (second v) (q/cos angle)))])
+
+(defn reverse-x [v]
+  [(- (first v)) (second v)])
 
 (defn player-hit-bat [ball-dir bat-dir]
   (let [angle (- q/PI (q/acos (second ball-dir)))
@@ -74,6 +76,7 @@
     
     (check-roof-floor state params) 
       (hit-rf ball-dir)
+    
     :else ball-dir))
 
 (defn round [v multiplier]
@@ -82,9 +85,8 @@
       (f v)
       (mapv f v))))
 
-(defn check-reset-and-round [size ball ball-dir ball-speed ball-start-speed]
+(defn check-reset [size ball ball-dir ball-speed ball-start-speed]
   (if (or (< (first ball) (- (/ (first size) 2)))
           (> (first ball) (/ (first size) 2)))
     [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed]
-    (let [rounded-ball (round ball 100)]
-      [rounded-ball ball-dir ball-speed])))
+    [(round ball 100) ball-dir ball-speed]))

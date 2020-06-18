@@ -31,13 +31,12 @@
          io/input-stream
          response
          (assoc :headers {"Content-Type" "text/html; charset=utf-8"})))
-   ;;; For sente 2 rows --->
    (GET  "/chsk" req (ring-ajax-get-or-ws-handshake req))
    (POST "/chsk" req (ring-ajax-post                req))
    (resources "/")))
 
 
-;; p1 is host so she sends whole state and p2 sends only bat-dir.
+;; Player-1 is host so she sends ball and bat and player-2 sends only bat-dir.
 ;; p-state is [ball player-bat player-bat-dir].
 (add-watch last-changed-uid 
            nil
@@ -60,36 +59,37 @@
                   (swap! follow-games assoc-in [uid :p2-state] nil)))))
 
 
-;; Timer keeps track of players messages. If msg takes too long player is 
-;; removed from server.
-(defn client-timer [uid player-num]
-  (Thread/sleep 10000)
+(defn remove-game [uid]
+  (let [uid-num (Integer/parseInt (str (last uid)))]
+    (swap! follow-games dissoc uid)
+    (swap! taken-uid-nums (partial remove #(= uid-num %)))))
+
+
+;; Remove client from game. If player-2 is online change her to player-1.
+(defn remove-client [uid player-num]
   ;; Tell other player game is off.
   (chsk-send! uid [:pingpong/game-off nil])
-  (prn "client removed" uid player-num)
-  (let [{:keys [player-1 p1-timer player-2 
-                p2-state p2-timer]} (get @follow-games uid)]
+  (prn "Client removed" uid player-num)
+  (let [{:keys [player-1 player-2]} (get @follow-games uid)]
     (cond
       (and (= player-num 1) player-2)
-        (do ;; We don't reboot player-2 due to timer handling.
-            (swap! follow-games assoc-in [uid :player-1] player-2)
-            (swap! follow-games assoc-in [uid :p1-callback] nil)
-            (swap! follow-games assoc-in [uid :p1-state] nil)
-            (swap! follow-games assoc-in [uid :p1-timer] (future))
-            (swap! follow-games assoc-in [uid :p2-callback] nil)
-            (swap! follow-games assoc-in [uid :p2-state] nil)
-            (swap! follow-games assoc-in [uid :p2-timer] (future))
-            (swap! follow-games assoc-in [uid :game-on] false))
+        (do ;; Change player-2 to player-1.
+          (swap! follow-games assoc-in [uid :player-1] player-2)
+          (swap! follow-games assoc-in [uid :p1-callback] nil)
+          (swap! follow-games assoc-in [uid :p1-state] nil)
+          (swap! follow-games assoc-in [uid :p1-timer] nil)
+          (swap! follow-games assoc-in [uid :player-2] nil)
+          (swap! follow-games assoc-in [uid :p2-callback] nil)
+          (swap! follow-games assoc-in [uid :p2-state] nil)
+          (swap! follow-games assoc-in [uid :p2-timer] nil)
+          (swap! follow-games assoc-in [uid :game-on] false))
       (and (= player-num 2) player-1)
-        (do (swap! follow-games assoc-in [uid :player-2] nil)
-            (swap! follow-games assoc-in [uid :p2-callback] nil)
-            (swap! follow-games assoc-in [uid :p2-state] nil)
-            (swap! follow-games assoc-in [uid :p2-timer] (future))
-            (swap! follow-games assoc-in [uid :game-on] false))
-      :else ;; Remove completely from follow-games.
-        (let [uid-num (Integer/parseInt (str (last uid)))]
-          (swap! follow-games dissoc uid)
-          (swap! taken-uid-nums (partial remove #(= uid-num %)))))))
+        (do ;; Remove player-2 from game.
+          (swap! follow-games assoc-in [uid :player-2] nil)
+          (swap! follow-games assoc-in [uid :p2-callback] nil)
+          (swap! follow-games assoc-in [uid :p2-state] nil)
+          (swap! follow-games assoc-in [uid :p2-timer] nil)
+          (swap! follow-games assoc-in [uid :game-on] false)))))
 
 
 ;;; Events --->
@@ -104,37 +104,37 @@
 
 ;; States from players.
 (defmethod event :pingpong/state [{:keys [uid ?data client-id ?reply-fn]}]
-  (let [{:keys [player-1 player-2 p1-state 
+  (let [{:keys [game-on player-1 player-2 p1-state 
                 p2-state p1-timer p2-timer]} (get @follow-games uid)
         player-1? (= player-1 client-id)
         player-2? (= player-2 client-id)]
-;;    (prn "client-id" player-1 player-2 client-id)
     (when player-1?
-      ;; Reset timer for client.
-      (future-cancel p1-timer)
-      (if (and player-1? player-2?)
-        ;; If both players are same that means p2 has become p1. Reset p2.
-        (swap! follow-games assoc-in [uid :player-2] nil)
-        (let [client-future (future (client-timer uid 1))]
-          (swap! follow-games assoc-in [uid :p1-timer] client-future)
-          (swap! follow-games assoc-in [uid :p1-state] ?data)
-          (swap! follow-games assoc-in [uid :p1-callback] ?reply-fn)
-          (reset! last-changed-uid uid))))
+      ;; Check player-2 timer. If realized remove client from game.
+      (when p2-timer
+        (when (realized? p2-timer)
+          (remove-client uid 2)))
+      (let [client-future (future (Thread/sleep 2000))]
+        (swap! follow-games assoc-in [uid :p1-timer] client-future)
+        (swap! follow-games assoc-in [uid :p1-state] ?data)
+        (swap! follow-games assoc-in [uid :p1-callback] ?reply-fn)
+        (reset! last-changed-uid uid)))
     (when player-2?
-      (future-cancel p2-timer)
-      (let [client-future (future (client-timer uid 2))]
-        (swap! follow-games assoc-in [uid :p2-timer] client-future)
-        (swap! follow-games assoc-in [uid :p2-state] ?data)
-        (swap! follow-games assoc-in [uid :p2-callback] ?reply-fn))
-        (reset! last-changed-uid uid))))
+      ;; If player-1 timer clicks change player-2 to player-1.
+      (when p1-timer
+        (when (realized? p1-timer)
+          (remove-client uid 1)))
+        (let [client-future (future (Thread/sleep 2000))]
+          (swap! follow-games assoc-in [uid :p2-timer] client-future)
+          (swap! follow-games assoc-in [uid :p2-state] ?data)
+          (swap! follow-games assoc-in [uid :p2-callback] ?reply-fn)
+          (reset! last-changed-uid uid)))))
 
 
 ;; If game has no players delete from follow-games and free uid-num 
 ;; for future games.
 (defmethod event :chsk/uidport-close [{:keys [uid]}]
-  (let [uid-num (Integer/parseInt (str (last uid)))]
-    (swap! follow-games dissoc uid)
-    (swap! taken-uid-nums (partial remove #(= uid-num %)))))
+  (prn "Game removed" uid)
+  (remove-game uid))
 
 
 ;;; Router --->

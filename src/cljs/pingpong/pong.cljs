@@ -1,9 +1,7 @@
 (ns pingpong.pong
   (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]
-            [pingpong.ping :refer [check-reset-and-round calc-bat-dir 
-                                   calc-new-ball-dir]]
-            [pingpong.common :refer [frame-rate starting-state reverse-x]]
+            [pingpong.ping :refer [check-reset calc-bat-dir calc-new-ball-dir]]
             [pingpong.client2 :refer [opponent-state send-state-to-server]]))
 
 (def background-color 0)
@@ -23,8 +21,20 @@
              :ball-diameter ball-diameter})
 
 (defn setup []
-  (q/frame-rate frame-rate)
-  starting-state)
+  (q/frame-rate 60)
+  {:ball [0 0]
+   :ball-dir [(dec (* 2 (rand-int 2))) 0] ;; Random direction.
+   :ball-speed ball-start-speed
+   :player-bat (- (/ bat-height 2))
+   :opponent-bat  (- (/ bat-height 2))
+   :player-bat-dir 0
+   :opponent-bat-dir 0
+   :player-score 0
+   :opponent-score 0
+   :up-pressed false
+   :down-pressed false
+   :last-pressed nil
+   :game-on false})
 
 (defn key-pressed [state event]
   (case (:key event)
@@ -53,11 +63,8 @@
         new-ball-speed (+ ball-speed speed-inc)
         [final-ball 
          final-ball-dir
-         final-ball-speed] (check-reset-and-round size 
-                                                  new-ball 
-                                                  new-ball-dir 
-                                                  new-ball-speed 
-                                                  ball-start-speed)]
+         final-ball-speed] (check-reset size new-ball new-ball-dir 
+                                        new-ball-speed ball-start-speed)]
     (-> game-state
       (assoc :game-on game-on)
       (assoc :ball final-ball)
@@ -69,8 +76,8 @@
 (defn update-state [player-state]
   (let [bat-dir (calc-bat-dir player-state)
         {:as opp-state :keys [host?]} @opponent-state]
-;;    (when host?
-;;    (prn "opp-state" opp-state)
+    (when host?
+      (prn "opp-state" opp-state))
 ;;    (prn "player-state" player-state))
     (send-state-to-server (-> player-state 
                               (assoc :player-bat-dir bat-dir)))
@@ -105,6 +112,7 @@
   (draw-keys)
   ;; Draw ball only when game is on!
   (when game-on
+;;    (draw-scores state)
     (q/ellipse (first ball) (second ball) ball-diameter 
                ball-diameter))
   (draw-bats state)

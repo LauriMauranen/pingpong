@@ -8,4 +8,5 @@
   (run-sketch))
 
 (defn render []
-  (reagent/render [(fn [] [:p ""])] (js/document.getElementById "app")))
+  (reagent/render [(fn [] [:p "plöö"])] 
+                  (js/document.getElementById "app")))
