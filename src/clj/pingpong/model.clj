@@ -1,4 +1,5 @@
-(ns pingpong.model)
+(ns pingpong.model
+  (:require [clojure.string :as str]))
 
 (defonce follow-games (atom {}))
 
@@ -29,6 +30,7 @@
       (if (empty? u-list)
         ;; All games are full or no games at all. Make new game.
         (let [new-uid (format "game-%d" (smallest-new-uid-num))]
+          (prn "New uid added" new-uid)
           (swap! follow-games assoc new-uid {:game-on false
                                              :player-1 client-id
                                              :player-2 nil
@@ -44,6 +46,7 @@
           (if game-on
             (recur (rest u-list))
             (do ;; Add client to existing non-full game and start game.
+              (prn "PLayer-2 to" uid)
               (swap! follow-games assoc-in [uid :player-2] client-id)
               (swap! follow-games assoc-in [uid :game-on] true)
               uid)))))))

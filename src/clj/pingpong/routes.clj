@@ -43,7 +43,6 @@
            (fn [_ _ _ uid]
              (let [{:keys [p1-state p2-state p1-callback 
                            p2-callback]} (get @follow-games uid)]
-;;              (prn "watch" p1-state p2-state)
               ;; Server waits both players before sending new states.
               (when (and p1-state p2-state)
                 (when p1-callback
@@ -69,8 +68,8 @@
 (defn remove-client [uid player-num]
   ;; Tell other player game is off.
   (chsk-send! uid [:pingpong/game-off nil])
-  (prn "Client removed" uid player-num)
   (let [{:keys [player-1 player-2]} (get @follow-games uid)]
+    (prn "Client removed" uid player-num)
     (cond
       (and (= player-num 1) player-2)
         (do ;; Change player-2 to player-1.
@@ -96,7 +95,7 @@
 (defmulti event :id)
 
 (defmethod event :default [{:keys [event]}]
-  (prn "default server" event))
+  (prn "Default" event))
 
 (defmethod event :chsk/ws-ping [msg]
   nil)
