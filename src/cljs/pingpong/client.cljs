@@ -32,7 +32,7 @@
                       player-bat-dir
                       player-score
                       opponent-score]]
-    100 ;; timeout
+    500 ;; timeout
     (fn [reply]
       (when (sente/cb-success? reply)
         ;; If we get callback then game is on.
@@ -51,10 +51,7 @@
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
     :pingpong/game-off (do (swap! server-state assoc :host? true)
-                           (swap! server-state assoc :game-on? false)
-;;                           (swap! server-state assoc :opponent-bat 0)
-                           )
-    :chsk/ws-ping nil
+                           (swap! server-state assoc :game-on? false))
     (prn "Receive" ev-msg)))
 
 

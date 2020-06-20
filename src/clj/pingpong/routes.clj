@@ -82,13 +82,14 @@
   (prn "Default" event))
 
 (defmethod event :chsk/ws-ping [msg]
-  nil)
+  (prn "Server" msg))
 
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
   (prn "Client added to game" uid)
-  (model/uid-to-game! uid))
+  (model/uid-to-game! uid)
+  (prn @follow-games))
 
 
 ;; Remove offline client from game.
