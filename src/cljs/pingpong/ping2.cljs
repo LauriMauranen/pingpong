@@ -1,4 +1,4 @@
-(ns pingpong.ping
+(ns pingpong.ping2
   (:require [quil.core :as q :include-macros true]))
 
 (defn check-bat-player [{:keys [ball ball-dir player-bat ball-speed]} 
@@ -58,10 +58,10 @@
 (defn hit-rf [ball-dir]
   [(first ball-dir) (- (second ball-dir))])
 
-(defn calc-bat-dir [{:keys [up-pressed down-pressed last-pressed]}]
-  (if (and up-pressed (= last-pressed :up))
+(defn calc-bat-dir [{:keys [up-pressed? down-pressed? last-pressed]}]
+  (if (and up-pressed? (= last-pressed :up))
     (- 1)
-    (if (and down-pressed (= last-pressed :down))
+    (if (and down-pressed? (= last-pressed :down))
       1
       0)))
 
@@ -86,7 +86,10 @@
       (mapv f v))))
 
 (defn check-reset [size ball ball-dir ball-speed ball-start-speed]
-  (if (or (< (first ball) (- (/ (first size) 2)))
-          (> (first ball) (/ (first size) 2)))
-    [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed]
-    [(round ball 100) ball-dir ball-speed]))
+  (let [p-score? (< (first ball) (- (/ (first size) 2)))
+        opp-score? (> (first ball) (/ (first size) 2))]
+    (if p-score? 
+      [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed 1 0]
+      (if opp-score?
+        [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed 0 1]
+        [(round ball 100) ball-dir ball-speed]))))

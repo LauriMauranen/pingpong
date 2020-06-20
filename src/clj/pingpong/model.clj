@@ -1,52 +1,73 @@
 (ns pingpong.model
-  (:require [clojure.string :as str]))
+  (:require [clojure.set :refer [difference intersection]]))
 
 (defonce follow-games (atom {}))
 
 (defonce last-changed-uid (atom nil))
 
-(defonce taken-uid-nums (atom []))
+(defonce taken-uid-nums (atom ()))
 
 
-;; Helper function to determine new clients uid.
-(defn smallest-new-uid-num []
-  (let [taken-nums @taken-uid-nums
-        len (count taken-nums)]
+;; Helper function to pick number for new uid.
+(defn smallest-new-num! [num-list]
+  (let [len (count num-list)]
     (loop [try-num 1
            index 0]
       (if (and (< index len) 
-               (>= try-num (nth taken-nums index)))
+               (>= try-num (nth num-list index)))
         (recur (inc try-num) (inc index))
-        (do (reset! taken-uid-nums (sort (conj taken-nums try-num)))
+        (do (reset! taken-uid-nums (sort (conj num-list try-num)))
             try-num)))))
 
 
-;; Adds new client to game list where msgs are controlled.
-(defn player-to-game-list [{:keys [params]}]
-  (let [client-id (:client-id params)
-        games @follow-games
+;; Gives uid to every client.
+(defn uid-to-client! [ring-req]
+  (format "user-%d" (smallest-new-num! @taken-uid-nums)))
+
+
+;; Add uid to game.
+(defn uid-to-game! [client-uid]
+  (let [games @follow-games
         uids (keys games)]
+    ;; Try find opponent
     (loop [u-list uids]
       (if (empty? u-list)
-        ;; All games are full or no games at all. Make new game.
-        (let [new-uid (format "game-%d" (smallest-new-uid-num))]
-          (prn "New uid added" new-uid)
-          (swap! follow-games assoc new-uid {:game-on false
-                                             :player-1 client-id
-                                             :player-2 nil
-                                             :p1-state nil
-                                             :p2-state nil
-                                             :p1-callback nil
-                                             :p2-callback nil
-                                             :p1-timer nil
-                                             :p2-timer nil})
-          new-uid)
+        ;; No other players or all games are full.
+        (swap! follow-games assoc client-uid {:game-on false
+                                              :host? true
+                                              :opp-uid nil
+                                              :state nil
+                                              :callback nil})
         (let [uid (first u-list)
-              {:keys [game-on player-1]} (get games uid)]
-          (if game-on
+              {:keys [opp-uid]} (get games uid)]
+          (if opp-uid
             (recur (rest u-list))
-            (do ;; Add client to existing non-full game and start game.
-              (prn "PLayer-2 to" uid)
-              (swap! follow-games assoc-in [uid :player-2] client-id)
+            (do ;; Opponent found. Change also opponents state.
+              (swap! follow-games assoc-in [uid :opp-uid] client-uid)
               (swap! follow-games assoc-in [uid :game-on] true)
-              uid)))))))
+              (swap! follow-games assoc client-uid {:game-on true
+                                                    :host? false
+                                                    :opp-uid uid
+                                                    :state nil
+                                                    :callback nil}))))))))
+
+
+;; Remove uids that don't exist from follow-games and update taken-uid-nums.
+(defn update-book-keeping! [connected-uids & uid]
+  ;; If uid passed remove from follow-games
+  (when uid 
+    (swap! follow-games dissoc (first uid)))
+  (let [games @follow-games
+        games-set (set (keys games))
+        uids-set (set connected-uids)
+        correct-uids (intersection games-set uids-set)
+        left-overs (difference games-set uids-set)]
+    
+    (prn "uids now" correct-uids)
+    
+    ;; Remove false uids.
+    (doseq [false-uid left-overs]
+      (swap! follow-games dissoc false-uid))
+    ;; Update uid numbers.
+    (reset! taken-uid-nums (map #(Integer/parseInt (str( last %))) 
+                                correct-uids))))

@@ -1,8 +1,12 @@
 (ns pingpong.pong
   (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]
-            [pingpong.ping :refer [check-reset calc-bat-dir calc-new-ball-dir]]
-            [pingpong.client2 :refer [opponent-state send-state-to-server]]))
+            [pingpong.ping2 :refer [check-reset calc-bat-dir calc-new-ball-dir]]
+            [pingpong.client :refer [server-state send-state-to-server!]]))
+
+
+(defonce debug-atom (atom nil))
+
 
 (def background-color 0)
 (def bat-color 255)
@@ -31,61 +35,73 @@
    :opponent-bat-dir 0
    :player-score 0
    :opponent-score 0
-   :up-pressed false
-   :down-pressed false
+   :up-pressed? false
+   :down-pressed? false
    :last-pressed nil
-   :game-on false})
+   :game-on? false})
 
 (defn key-pressed [state event]
   (case (:key event)
     :m (-> state
-           (assoc-in [:down-pressed] true)
-           (assoc-in [:last-pressed] :down))
+           (assoc :down-pressed? true)
+           (assoc :last-pressed :down))
     :k (-> state 
-           (assoc-in [:up-pressed] true)
-           (assoc-in [:last-pressed] :up))
+           (assoc :up-pressed? true)
+           (assoc :last-pressed :up))
     state))
 
 (defn key-released [state event]
   (case (:key event) 
-    :m (assoc-in state [:down-pressed] false)
-    :k (assoc-in state [:up-pressed] false)
+    :m (assoc state :down-pressed? false)
+    :k (assoc state :up-pressed? false)
     state))
 
 (defn make-updates 
-  [{:as player-state :keys [ball ball-speed ball-dir]}
-   {:keys [opponent-bat-dir game-on]}]
+  [{:as player-state :keys [ball ball-speed ball-dir player-bat-dir]}
+   {:keys [opponent-bat-dir game-on?]}]
   (let [game-state (-> player-state 
-                       (assoc :player-bat-dir (calc-bat-dir player-state))
-                       (assoc :opponent-bat-dir opponent-bat-dir))
+                       (assoc :opponent-bat-dir opponent-bat-dir)
+                       (update :player-bat + (* bat-speed player-bat-dir))
+                       (update :opponent-bat + (* bat-speed opponent-bat-dir)))
+        ;; When game is off set opp-bat to middle, set scores to zero and
+        ;; don't speed up ball.
+        game-state (if game-on?
+                    game-state
+                    (-> game-state 
+                        (assoc :opponent-bat (- (/ bat-height 2)))
+                        (assoc :player-score 0)
+                        (assoc :opponent-score 0)
+                        (assoc :ball-speed ball-start-speed)))
         new-ball (mapv + ball (map #(* ball-speed %) ball-dir))
         new-ball-dir (calc-new-ball-dir game-state params)
         new-ball-speed (+ ball-speed speed-inc)
         [final-ball 
          final-ball-dir
-         final-ball-speed] (check-reset size new-ball new-ball-dir 
+         final-ball-speed
+         p-score-inc
+         opp-score-inc] (check-reset size new-ball new-ball-dir 
                                         new-ball-speed ball-start-speed)]
     (-> game-state
-      (assoc :game-on game-on)
+      (assoc :game-on? game-on?)
       (assoc :ball final-ball)
       (assoc :ball-dir final-ball-dir)
       (assoc :ball-speed final-ball-speed)
-      (update :player-bat + (* bat-speed (:player-bat-dir game-state)))
-      (update :opponent-bat + (* bat-speed opponent-bat-dir)))))
+      (update :player-score + p-score-inc)
+      (update :opponent-score + opp-score-inc))))
 
 (defn update-state [player-state]
   (let [bat-dir (calc-bat-dir player-state)
-        {:as opp-state :keys [host?]} @opponent-state]
-    (when host?
-      (prn "opp-state" opp-state))
-;;    (prn "player-state" player-state))
-    (send-state-to-server (-> player-state 
-                              (assoc :player-bat-dir bat-dir)))
+        new-p-state (assoc player-state :player-bat-dir bat-dir)
+        {:as s-state :keys [host?]} @server-state]
+
+;;    (reset! debug-atom new-p-state)
+    
+    (send-state-to-server! new-p-state)
     (if host?
-      (-> player-state 
-          (into (dissoc opp-state :host?))
-          (update :player-bat + (* bat-speed bat-dir)))
-      (make-updates player-state opp-state))))
+      (make-updates new-p-state s-state)
+      (-> new-p-state 
+          (into (dissoc s-state :host?))
+          (update :player-bat + (* bat-speed bat-dir))))))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)
@@ -95,33 +111,33 @@
   (q/text "K" 0 k-height)
   (q/text "M" -2 m-height)))
 
+(defn draw-scores [{:keys [player-score opponent-score]}]
+  (let [p-width (- (/ (q/width) 2) 50)
+        opp-width (- 50 (/ (q/width) 2))
+        p-opp-height (- 50 (/ (q/height) 2))]
+  (q/text-size 25)
+  (q/text-num player-score p-width p-opp-height)
+  (q/text-num opponent-score opp-width p-opp-height)))
+
 (defn draw-bats [{:keys [player-bat opponent-bat]}]
   (q/rect (- (/ (q/width) 2)) opponent-bat bat-width bat-height)
   (q/rect (- (/ (q/width) 2) bat-width) player-bat bat-width bat-height))
 
-(defn debugf [{:as state :keys [ball ball-dir ball-speed]}]
-;;    (prn state)
-    (q/fill 255)
-    (q/text-size 20)
-    (q/text "" 0 100))
-
-(defn draw-state [{:as state :keys [ball game-on]}]
+(defn draw-state [{:as state :keys [ball game-on?]}]
   (q/background background-color)
   (q/fill 255)
   (q/translate (/ (q/width) 2) (/ (q/height) 2))
   (draw-keys)
   ;; Draw ball only when game is on!
-  (when game-on
-;;    (draw-scores state)
+  (when game-on?
+    (draw-scores state)
     (q/ellipse (first ball) (second ball) ball-diameter 
                ball-diameter))
-  (draw-bats state)
-  (debugf state)
-  )
+  (draw-bats state))
 
 (defn run-sketch []
   (q/defsketch pingpong
-    :title "Play pong"
+    :title "Play pong!"
     :size size
     :setup setup
     :key-pressed key-pressed
