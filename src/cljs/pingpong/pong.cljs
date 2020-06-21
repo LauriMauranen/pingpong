@@ -95,7 +95,8 @@
       (make-updates new-p-state s-state)
       (-> new-p-state 
           (into (dissoc s-state :host?))
-          (update :player-bat + (* bat-speed bat-dir))))))
+          (update :player-bat + (* bat-speed bat-dir))
+          ))))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)

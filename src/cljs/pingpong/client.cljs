@@ -25,17 +25,17 @@
 
 ;; Send state to server. What comes back depends on is client host.
 (defn send-state-to-server!
-  [{:keys [ball player-bat player-bat-dir player-score opponent-score]}]
+  [{:keys [ball ball-dir player-bat player-bat-dir 
+           player-score opponent-score]}]
   (let [host? (:host? @server-state)
         msg (if host?
               [(reverse-x ball) player-bat opponent-score player-score]
               [player-bat player-bat-dir])]
     (chsk-send! 
       [:pingpong/state msg]
-      350 ;; timeout ms
+      200 ;; timeout ms
       (fn [reply]
-        (when (sente/cb-success? reply)
-          ;; If we get callback then game is on.
+        (if (sente/cb-success? reply)
           (if host?
             (when (= (count reply) 2)
               (swap! server-state into {:game-on? true
@@ -46,7 +46,7 @@
                                         :ball (first reply)
                                         :opponent-bat (second reply)
                                         :player-score (nth reply 2) 
-                                        :opponent-score (last reply)}))))))))
+                                        :opponent-score (nth reply 3)}))))))))
 
 
 ;; Event handler --->
