@@ -25,21 +25,28 @@
 
 ;; Send state to server. What comes back depends on is client host.
 (defn send-state-to-server!
-  [{:keys [ball player-bat player-bat-dir]}]
-  (chsk-send! 
-    [:pingpong/state [(reverse-x ball)
-                      player-bat
-                      player-bat-dir]]
-    400 ;; timeout ms
-    (fn [reply]
-      (when (sente/cb-success? reply)
-        ;; If we get callback then game is on.
-        (if (:host? @server-state)
-          (swap! server-state into {:game-on? true
-                                    :opponent-bat-dir reply})
-          (swap! server-state into {:game-on? true
-                                    :ball (first reply)
-                                    :opponent-bat (second reply)}))))))
+  [{:keys [ball player-bat player-bat-dir player-score opponent-score]}]
+  (let [host? (:host? @server-state)
+        msg (if host?
+              [(reverse-x ball) player-bat opponent-score player-score]
+              [player-bat player-bat-dir])]
+    (chsk-send! 
+      [:pingpong/state msg]
+      350 ;; timeout ms
+      (fn [reply]
+        (when (sente/cb-success? reply)
+          ;; If we get callback then game is on.
+          (if host?
+            (when (= (count reply) 2)
+              (swap! server-state into {:game-on? true
+                                        :opponent-bat (first reply)
+                                        :opponent-bat-dir (second reply)}))
+            (when (= (count reply) 4)
+              (swap! server-state into {:game-on? true
+                                        :ball (first reply)
+                                        :opponent-bat (second reply)
+                                        :player-score (nth reply 2) 
+                                        :opponent-score (last reply)}))))))))
 
 
 ;; Event handler --->
@@ -49,7 +56,7 @@
   (prn "Default client" event))
 
 
-;; When opponent leaves change clients state.
+;; This msg from server determines is client host.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
     :pingpong/host? (do (swap! server-state assoc :host? (second ?data))

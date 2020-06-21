@@ -35,7 +35,7 @@
    (resources "/")))
 
 
-;; Send state to players. p1/p2 -state is [ball player-bat player-bat-dir].
+;; Send state to other player. 
 (add-watch last-changed-uid 
            nil
            (fn [_ _ _ p1-uid]
@@ -43,22 +43,16 @@
                   p1 (get games p1-uid)
                   p1-state (:state p1)
                   p2-uid (:opp-uid p1)
-                  p1-host? (:host? p1)
                   p1-callback (:callback p1)]
+;;              (prn "watch" p1-state)
               (when p2-uid
                 (let [p2 (get games p2-uid)
                       p2-state (:state p2)
                       p2-callback (:callback p2)]
                   ;; Server waits both players before sending new states.
                   (when (and p1-state p2-state)
-                    (if p1-host?
-                      ;; p1 is host. To host we send opponent-bat-dir,
-                      ;; to other player [ball opp-bat].
-                      (do (p1-callback (last p2-state))
-                          (p2-callback [(first p1-state) (second p1-state)]))
-                      ;; p2 is host.
-                      (do (p2-callback (last p1-state))
-                          (p1-callback [(first p2-state) (second p2-state)])))
+                    (p1-callback p2-state)
+                    (p2-callback p1-state)
                     ;; Reset states.
                     (swap! follow-games assoc-in [p1-uid :state] nil)
                     (swap! follow-games assoc-in [p2-uid :state] nil)))))))
@@ -76,7 +70,7 @@
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
-  (model/uid-to-game! uid chsk-send!)
+  (model/uid-to-game! uid chsk-send! connected-uids)
   (prn "Client added to game" uid)
   ;; For debug
   (prn @follow-games))
@@ -89,7 +83,7 @@
     (swap! follow-games dissoc uid)
     (when opp-uid
       ;; If opponent exists move her to another game.
-      (model/uid-to-game! opp-uid chsk-send!)))
+      (model/uid-to-game! opp-uid chsk-send! connected-uids)))
   (prn "Client removed from game" uid))
 
 

@@ -4,10 +4,6 @@
             [pingpong.ping2 :refer [check-reset calc-bat-dir calc-new-ball-dir]]
             [pingpong.client :refer [server-state send-state-to-server!]]))
 
-
-(defonce debug-atom (atom nil))
-
-
 (def background-color 0)
 (def bat-color 255)
 (def ball-color 255)
@@ -58,11 +54,12 @@
 
 (defn make-updates 
   [{:as player-state :keys [ball ball-speed ball-dir player-bat-dir]}
-   {:keys [opponent-bat-dir game-on?]}]
+   {:keys [opponent-bat opponent-bat-dir game-on?]}]
   (let [game-state (-> player-state 
                        (assoc :opponent-bat-dir opponent-bat-dir)
                        (update :player-bat + (* bat-speed player-bat-dir))
-                       (update :opponent-bat + (* bat-speed opponent-bat-dir)))
+                       (assoc :opponent-bat (+ opponent-bat
+                                               (* bat-speed opponent-bat-dir))))
         ;; When game is off set opp-bat to middle, set scores to zero and
         ;; don't speed up ball.
         game-state (if game-on?
@@ -93,9 +90,6 @@
   (let [bat-dir (calc-bat-dir player-state)
         new-p-state (assoc player-state :player-bat-dir bat-dir)
         {:as s-state :keys [host?]} @server-state]
-
-;;    (reset! debug-atom new-p-state)
-    
     (send-state-to-server! new-p-state)
     (if host?
       (make-updates new-p-state s-state)

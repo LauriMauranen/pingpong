@@ -1,5 +1,5 @@
 (ns pingpong.model
-  (:require [clojure.set :refer [difference intersection]]))
+  (:require [clojure.set :refer [difference]]))
 
 (defonce follow-games (atom {}))
 
@@ -26,15 +26,19 @@
 
 
 ;; Add uid to game.
-(defn uid-to-game! [client-uid chsk-send!]
+(defn uid-to-game! [client-uid chsk-send! connected-uids]
   (let [games @follow-games
-        uids (keys games)]
+        uids (keys games)
+        real-uids-set (set (:any @connected-uids))
+        false-uids (difference (set uids) real-uids-set)]
+    ;; First remove false uids
+    (doseq [false-uid false-uids]
+      (swap! follow-games dissoc false-uid))
     ;; Try find opponent
     (loop [u-list uids]
       (if (empty? u-list)
         (do ;; No other players or all games are full.
-          (swap! follow-games assoc client-uid {:host? true
-                                                :opp-uid nil
+          (swap! follow-games assoc client-uid {:opp-uid nil
                                                 :state nil
                                                 :callback nil})
           ;; Tell client she is host.
@@ -45,8 +49,7 @@
             (recur (rest u-list))
             (do ;; Opponent found. Change also opponents state.
               (swap! follow-games assoc-in [uid :opp-uid] client-uid)
-              (swap! follow-games assoc client-uid {:host? false
-                                                    :opp-uid uid
+              (swap! follow-games assoc client-uid {:opp-uid uid
                                                     :state nil
                                                     :callback nil})
               ;; Tell client she's not host.
