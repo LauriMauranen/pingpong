@@ -18,10 +18,8 @@
                  [org.clojure/tools.namespace "0.2.11"]
                  [http-kit "2.3.0"]
                  [compojure "1.6.1"]
-                 [reagent "0.8.1"]
                  [quil "3.1.0"]
-                 [com.taoensso/sente "1.15.0"]
-                 ]
+                 [com.taoensso/sente "1.15.0"]]
 
   :plugins [[lein-cljsbuild "1.1.7"]
             [lein-environ "1.1.0"]]

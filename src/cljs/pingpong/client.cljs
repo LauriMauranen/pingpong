@@ -30,26 +30,28 @@
     [:pingpong/state [(reverse-x ball)
                       player-bat
                       player-bat-dir]]
-    400 ;; timeout
+    400 ;; timeout ms
     (fn [reply]
       (when (sente/cb-success? reply)
         ;; If we get callback then game is on.
-        (swap! server-state conj (assoc reply :game-on? true))))))
+        (if (:host? @server-state)
+          (swap! server-state into {:game-on? true
+                                    :opponent-bat-dir reply})
+          (swap! server-state into {:game-on? true
+                                    :ball (first reply)
+                                    :opponent-bat (second reply)}))))))
 
 
 ;; Event handler --->
 (defmulti event :id)
 
-
 (defmethod event :default [{:keys [event]}]
   (prn "Default client" event))
 
 
-;; When other player leaves set game off and other player host.
+;; When opponent leaves change clients state.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
-;;    :pingpong/game-off (do (swap! server-state assoc :host? true)
-;;                           (swap! server-state assoc :game-on? false))
     :pingpong/host? (do (swap! server-state assoc :host? (second ?data))
                         (swap! server-state assoc :game-on? false))
     (prn "Receive" ev-msg)))

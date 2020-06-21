@@ -45,7 +45,6 @@
                   p2-uid (:opp-uid p1)
                   p1-host? (:host? p1)
                   p1-callback (:callback p1)]
-;;              (prn "Watch" p1)
               (when p2-uid
                 (let [p2 (get games p2-uid)
                       p2-state (:state p2)
@@ -72,26 +71,26 @@
   (prn "Default" event))
 
 (defmethod event :chsk/ws-ping [{:keys [event]}]
-  (prn "Server" event))
+  nil)
 
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
-  (prn "Client added to game" uid)
   (model/uid-to-game! uid chsk-send!)
+  (prn "Client added to game" uid)
+  ;; For debug
   (prn @follow-games))
 
 
 ;; Remove offline client from game.
 (defmethod event :chsk/uidport-close [{:keys [uid]}]
-  (prn "Client removed from game" uid)
   (let [{:keys [opp-uid]} (get @follow-games uid)]
-    ;; First make changes to follow-games and taken-uid-nums. 
-    (model/update-book-keeping! (:any @connected-uids) uid)
+    ;; Remove client
+    (swap! follow-games dissoc uid)
     (when opp-uid
-      ;; If opponent exists tell her game is off and move to her another game.
-;;      (chsk-send! opp-uid [:pingpong/game-off nil])
-      (model/uid-to-game! opp-uid chsk-send!))))
+      ;; If opponent exists move her to another game.
+      (model/uid-to-game! opp-uid chsk-send!)))
+  (prn "Client removed from game" uid))
 
 
 ;; States from players.

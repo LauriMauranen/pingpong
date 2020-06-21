@@ -5,24 +5,24 @@
 
 (defonce last-changed-uid (atom nil))
 
-(defonce taken-uid-nums (atom ()))
-
 
 ;; Helper function to pick number for new uid.
-(defn smallest-new-num! [num-list]
-  (let [len (count num-list)]
+(defn smallest-new-num! []
+  (let [games @follow-games
+        ;; These numbers are already in use.
+        nums (sort (map #(Integer/parseInt (str( last %))) (keys games)))
+        len (count nums)]
     (loop [try-num 1
            index 0]
       (if (and (< index len) 
-               (>= try-num (nth num-list index)))
+               (>= try-num (nth nums index)))
         (recur (inc try-num) (inc index))
-        (do (reset! taken-uid-nums (sort (conj num-list try-num)))
-            try-num)))))
+        try-num))))
 
 
 ;; Gives uid to every client.
 (defn uid-to-client! [ring-req]
-  (format "user-%d" (smallest-new-num! @taken-uid-nums)))
+  (format "user-%d" (smallest-new-num!)))
 
 
 ;; Add uid to game.
@@ -33,8 +33,7 @@
     (loop [u-list uids]
       (if (empty? u-list)
         (do ;; No other players or all games are full.
-          (swap! follow-games assoc client-uid {:game-on false
-                                                :host? true
+          (swap! follow-games assoc client-uid {:host? true
                                                 :opp-uid nil
                                                 :state nil
                                                 :callback nil})
@@ -46,32 +45,9 @@
             (recur (rest u-list))
             (do ;; Opponent found. Change also opponents state.
               (swap! follow-games assoc-in [uid :opp-uid] client-uid)
-              (swap! follow-games assoc-in [uid :game-on] true)
-              (swap! follow-games assoc client-uid {:game-on true
-                                                    :host? false
+              (swap! follow-games assoc client-uid {:host? false
                                                     :opp-uid uid
                                                     :state nil
                                                     :callback nil})
               ;; Tell client she's not host.
               (chsk-send! client-uid [:pingpong/host? false]))))))))
-
-
-;; Remove uids that don't exist from follow-games and update taken-uid-nums.
-(defn update-book-keeping! [connected-uids & uid]
-  ;; If uid passed remove from follow-games
-  (when uid 
-    (swap! follow-games dissoc (first uid)))
-  (let [games @follow-games
-        games-set (set (keys games))
-        uids-set (set connected-uids)
-        correct-uids (intersection games-set uids-set)
-        left-overs (difference games-set uids-set)]
-    
-    (prn "uids now" correct-uids)
-    
-    ;; Remove false uids.
-    (doseq [false-uid left-overs]
-      (swap! follow-games dissoc false-uid))
-    ;; Update uid numbers.
-    (reset! taken-uid-nums (map #(Integer/parseInt (str( last %))) 
-                                correct-uids))))
