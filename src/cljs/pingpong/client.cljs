@@ -25,14 +25,12 @@
 
 ;; Send state to server. What comes back depends on is client host.
 (defn send-state-to-server!
-  [{:keys [ball player-bat player-bat-dir player-score opponent-score]}]
+  [{:keys [ball player-bat player-bat-dir]}]
   (chsk-send! 
     [:pingpong/state [(reverse-x ball)
                       player-bat
-                      player-bat-dir
-                      player-score
-                      opponent-score]]
-    500 ;; timeout
+                      player-bat-dir]]
+    400 ;; timeout
     (fn [reply]
       (when (sente/cb-success? reply)
         ;; If we get callback then game is on.
@@ -50,8 +48,10 @@
 ;; When other player leaves set game off and other player host.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
-    :pingpong/game-off (do (swap! server-state assoc :host? true)
-                           (swap! server-state assoc :game-on? false))
+;;    :pingpong/game-off (do (swap! server-state assoc :host? true)
+;;                           (swap! server-state assoc :game-on? false))
+    :pingpong/host? (do (swap! server-state assoc :host? (second ?data))
+                        (swap! server-state assoc :game-on? false))
     (prn "Receive" ev-msg)))
 
 

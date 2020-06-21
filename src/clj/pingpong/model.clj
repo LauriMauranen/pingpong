@@ -26,18 +26,20 @@
 
 
 ;; Add uid to game.
-(defn uid-to-game! [client-uid]
+(defn uid-to-game! [client-uid chsk-send!]
   (let [games @follow-games
         uids (keys games)]
     ;; Try find opponent
     (loop [u-list uids]
       (if (empty? u-list)
-        ;; No other players or all games are full.
-        (swap! follow-games assoc client-uid {:game-on false
-                                              :host? true
-                                              :opp-uid nil
-                                              :state nil
-                                              :callback nil})
+        (do ;; No other players or all games are full.
+          (swap! follow-games assoc client-uid {:game-on false
+                                                :host? true
+                                                :opp-uid nil
+                                                :state nil
+                                                :callback nil})
+          ;; Tell client she is host.
+          (chsk-send! client-uid [:pingpong/host? true]))
         (let [uid (first u-list)
               {:keys [opp-uid]} (get games uid)]
           (if opp-uid
@@ -49,7 +51,9 @@
                                                     :host? false
                                                     :opp-uid uid
                                                     :state nil
-                                                    :callback nil}))))))))
+                                                    :callback nil})
+              ;; Tell client she's not host.
+              (chsk-send! client-uid [:pingpong/host? false]))))))))
 
 
 ;; Remove uids that don't exist from follow-games and update taken-uid-nums.

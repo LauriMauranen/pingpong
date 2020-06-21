@@ -35,8 +35,7 @@
    (resources "/")))
 
 
-;; Send state to players. Host sends more data than other player.
-;; p1/p2 -state is [ball player-bat player-bat-dir player-score opponent-score].
+;; Send state to players. p1/p2 -state is [ball player-bat player-bat-dir].
 (add-watch last-changed-uid 
            nil
            (fn [_ _ _ p1-uid]
@@ -54,22 +53,13 @@
                   ;; Server waits both players before sending new states.
                   (when (and p1-state p2-state)
                     (if p1-host?
-                      ;; p1 is host.
-                      (do (p1-callback {:host? true
-                                        :opponent-bat-dir (nth p2-state 2)})
-                          (p2-callback {:host? false
-                                        :ball (first p1-state)
-                                        :opponent-bat (second p1-state)
-                                        :player-score (last p1-state)
-                                        :opponent-score (nth p1-state 3)}))
+                      ;; p1 is host. To host we send opponent-bat-dir,
+                      ;; to other player [ball opp-bat].
+                      (do (p1-callback (last p2-state))
+                          (p2-callback [(first p1-state) (second p1-state)]))
                       ;; p2 is host.
-                      (do (p2-callback {:host? true
-                                        :opponent-bat-dir (nth p1-state 2)})
-                          (p1-callback {:host? false
-                                        :ball (first p2-state)
-                                        :opponent-bat (second p2-state)
-                                        :player-score (last p2-state)
-                                        :opponent-score (nth p2-state 3)})))
+                      (do (p2-callback (last p1-state))
+                          (p1-callback [(first p2-state) (second p2-state)])))
                     ;; Reset states.
                     (swap! follow-games assoc-in [p1-uid :state] nil)
                     (swap! follow-games assoc-in [p2-uid :state] nil)))))))
@@ -81,14 +71,14 @@
 (defmethod event :default [{:keys [event]}]
   (prn "Default" event))
 
-(defmethod event :chsk/ws-ping [msg]
-  (prn "Server" msg))
+(defmethod event :chsk/ws-ping [{:keys [event]}]
+  (prn "Server" event))
 
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
   (prn "Client added to game" uid)
-  (model/uid-to-game! uid)
+  (model/uid-to-game! uid chsk-send!)
   (prn @follow-games))
 
 
@@ -100,8 +90,8 @@
     (model/update-book-keeping! (:any @connected-uids) uid)
     (when opp-uid
       ;; If opponent exists tell her game is off and move to her another game.
-      (chsk-send! opp-uid [:pingpong/game-off nil])
-      (model/uid-to-game! opp-uid))))
+;;      (chsk-send! opp-uid [:pingpong/game-off nil])
+      (model/uid-to-game! opp-uid chsk-send!))))
 
 
 ;; States from players.
