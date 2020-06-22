@@ -33,7 +33,10 @@
               [player-bat player-bat-dir])]
     (chsk-send! 
       [:pingpong/state msg]
-      150 ;; timeout ms
+
+      ;; Timeout important!!!
+      250
+
       (fn [reply]
         (if (sente/cb-success? reply)
           (if host?

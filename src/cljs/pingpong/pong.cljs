@@ -14,7 +14,9 @@
 (def ball-start-speed 5)
 (def speed-inc 0.005)
 (def bat-speed 6)
-(def frame-delay 5) ;; Delays draw of player-bat.
+
+;; Delays draw of player-bat.
+(def frame-delay 5)
 
 ;; Delay atom makes little delay to player-bat movement. 
 (defonce delay-atom (atom '()))
@@ -23,7 +25,8 @@
              :bat-width bat-width
              :bat-height bat-height
              :ball-diameter ball-diameter
-             :web-extra (* bat-height 0.15)})
+             :web-extra 0 ;;(* bat-height 0.15)
+             })
 
 (defn setup []
   (q/frame-rate 60)
