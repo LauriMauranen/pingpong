@@ -38,7 +38,7 @@
       250
 
       (fn [reply]
-        (if (sente/cb-success? reply)
+        (when (sente/cb-success? reply)
           (if host?
             (when (= (count reply) 2)
               (swap! server-state into {:game-on? true

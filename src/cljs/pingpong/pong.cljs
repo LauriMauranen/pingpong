@@ -24,9 +24,7 @@
 (def params {:size size
              :bat-width bat-width
              :bat-height bat-height
-             :ball-diameter ball-diameter
-             :web-extra 0 ;;(* bat-height 0.15)
-             })
+             :ball-diameter ball-diameter})
 
 (defn setup []
   (q/frame-rate 60)
