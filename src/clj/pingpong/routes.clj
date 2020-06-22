@@ -44,7 +44,6 @@
                   p1-state (:state p1)
                   p2-uid (:opp-uid p1)
                   p1-callback (:callback p1)]
-;;              (prn "watch" p1-state)
               (when p2-uid
                 (let [p2 (get games p2-uid)
                       p2-state (:state p2)
@@ -70,7 +69,7 @@
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
-  (model/uid-to-game! uid chsk-send! connected-uids)
+  (model/uid-to-game! uid chsk-send!)
   (prn "Client added to game" uid)
   ;; For debug
   (prn @follow-games))
@@ -83,7 +82,7 @@
     (swap! follow-games dissoc uid)
     (when opp-uid
       ;; If opponent exists move her to another game.
-      (model/uid-to-game! opp-uid chsk-send! connected-uids)))
+      (model/uid-to-game! opp-uid chsk-send!)))
   (prn "Client removed from game" uid))
 
 

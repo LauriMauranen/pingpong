@@ -12,14 +12,14 @@
               (< (second ball) (+ player-bat bat-height ball-radius))))))
 
 (defn check-bat-opponent [{:keys [ball ball-dir opponent-bat ball-speed]} 
-                          {:keys [size bat-width bat-height ball-diameter]}]
+                          {:keys [size bat-width bat-height ball-diameter
+                                  web-extra]}]
   (let [ball-radius (/ ball-diameter 2)
         ball-edge (- (first ball) ball-radius)
-        bat-edge (- bat-width (/ (first size) 2))
-        web-extra (* bat-height 0.2)]
+        bat-edge (- bat-width (/ (first size) 2))]
     (and (< bat-edge ball-edge)
          (< (+ ball-edge (* 2 ball-speed (first ball-dir))) bat-edge)
-         ;; web extra added to help non host player!
+         ;; web-extra added to help non-host player!
          (and (> (second ball) (- opponent-bat ball-radius web-extra))
               (< (second ball) (+ opponent-bat bat-height 
                                   ball-radius web-extra))))))

@@ -26,14 +26,9 @@
 
 
 ;; Add uid to game.
-(defn uid-to-game! [client-uid chsk-send! connected-uids]
+(defn uid-to-game! [client-uid chsk-send!]
   (let [games @follow-games
-        uids (keys games)
-        real-uids-set (set (:any @connected-uids))
-        false-uids (difference (set uids) real-uids-set)]
-    ;; First remove false uids
-    (doseq [false-uid false-uids]
-      (swap! follow-games dissoc false-uid))
+        uids (keys games)]
     ;; Try find opponent
     (loop [u-list uids]
       (if (empty? u-list)

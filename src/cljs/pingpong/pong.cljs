@@ -14,11 +14,16 @@
 (def ball-start-speed 5)
 (def speed-inc 0.005)
 (def bat-speed 6)
+(def frame-delay 5) ;; Delays draw of player-bat.
+
+;; Delay atom makes little delay to player-bat movement. 
+(defonce delay-atom (atom '()))
 
 (def params {:size size
              :bat-width bat-width
              :bat-height bat-height
-             :ball-diameter ball-diameter})
+             :ball-diameter ball-diameter
+             :web-extra (* bat-height 0.15)})
 
 (defn setup []
   (q/frame-rate 60)
@@ -95,8 +100,7 @@
       (make-updates new-p-state s-state)
       (-> new-p-state 
           (into (dissoc s-state :host?))
-          (update :player-bat + (* bat-speed bat-dir))
-          ))))
+          (update :player-bat + (* bat-speed bat-dir))))))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)
@@ -115,8 +119,20 @@
   (q/text-num opponent-score opp-width p-opp-height)))
 
 (defn draw-bats [{:keys [player-bat opponent-bat]}]
-  (q/rect (- (/ (q/width) 2)) opponent-bat bat-width bat-height)
-  (q/rect (- (/ (q/width) 2) bat-width) player-bat bat-width bat-height))
+  ;; Put new val first in coll!!
+  (swap! delay-atom conj player-bat)
+  (let [half-width (/ (q/width) 2)
+        prev-moves @delay-atom]
+    (when (= (count prev-moves) frame-delay)
+      ;; Remove oldest val.
+      (swap! delay-atom butlast))
+    ;; Draw bats. Player bat is drawn frame-delay frames late.
+    (q/rect (- half-width bat-width) (last prev-moves) bat-width bat-height)
+    (q/rect (- half-width) opponent-bat bat-width bat-height)))
+
+;;(defn draw-bats [{:keys [player-bat opponent-bat]}]
+;;  (q/rect (- (/ (q/width) 2) bat-width) player-bat bat-width bat-height)
+;;  (q/rect (- (/ (q/width) 2)) opponent-bat bat-width bat-height))
 
 (defn draw-state [{:as state :keys [ball game-on?]}]
   (q/background background-color)
