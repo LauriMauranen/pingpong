@@ -11,9 +11,9 @@
 (def ball-diameter 30)
 (def bat-width 35)
 (def bat-height 100)
-(def ball-start-speed 5)
-(def speed-inc 0.005)
-(def bat-speed 6)
+(def ball-start-speed 10) ;; 5
+(def speed-inc 0.01) ;; 0.005
+(def bat-speed 10) ;; 6
 
 (def bat-delay 7)
 (defonce delay-atom (atom '()))
@@ -24,7 +24,7 @@
              :ball-diameter ball-diameter})
 
 (defn setup []
-  (q/frame-rate 30)
+  (q/frame-rate 40)
   {:ball [0 0]
    :ball-dir [(dec (* 2 (rand-int 2))) 0] ;; Random direction.
    :ball-speed ball-start-speed
@@ -70,7 +70,7 @@
 (defn make-updates 
   [{:as player-state :keys [ball ball-speed ball-dir player-bat-dir]}
    {:keys [opponent-bat-dir game-on?]}]
-  (let [delayed-bat-dir (delay-p-bat! player-bat-dir)
+  (let [delayed-bat-dir player-bat-dir ;;(delay-p-bat! player-bat-dir)
         game-state (-> player-state
                        (assoc :player-bat-dir delayed-bat-dir)
                        (assoc :opponent-bat-dir opponent-bat-dir)
