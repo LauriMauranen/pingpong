@@ -15,10 +15,7 @@
 (def speed-inc 0.005)
 (def bat-speed 6)
 
-;; Delays draw of player-bat.
-(def frame-delay 5)
-
-;; Delay atom makes little delay to player-bat movement. 
+(def bat-delay 7)
 (defonce delay-atom (atom '()))
 
 (def params {:size size
@@ -40,7 +37,8 @@
    :up-pressed? false
    :down-pressed? false
    :last-pressed nil
-   :game-on? false})
+   :game-on? false
+   :host? true})
 
 (defn key-pressed [state event]
   (case (:key event)
@@ -58,14 +56,27 @@
     :k (assoc state :up-pressed? false)
     state))
 
+;; Delay host bat movement because non-host player has internet lag.
+(defn delay-p-bat! [bat-dir]
+  (swap! delay-atom conj bat-dir)
+  (let [prev-moves @delay-atom]
+    (if (= (count prev-moves) bat-delay)
+      ;; Remove and return oldest move.
+      (do (swap! delay-atom butlast)
+          (last prev-moves))
+      ;; Or return 0 so bat doesn't move.
+      0)))
+
 (defn make-updates 
   [{:as player-state :keys [ball ball-speed ball-dir player-bat-dir]}
-   {:keys [opponent-bat opponent-bat-dir game-on?]}]
-  (let [game-state (-> player-state 
+   {:keys [opponent-bat-dir game-on?]}]
+  (let [delayed-bat-dir (delay-p-bat! player-bat-dir)
+        game-state (-> player-state
+                       (assoc :player-bat-dir delayed-bat-dir)
                        (assoc :opponent-bat-dir opponent-bat-dir)
-                       (update :player-bat + (* bat-speed player-bat-dir))
-                       (assoc :opponent-bat (+ opponent-bat
-                                               (* bat-speed opponent-bat-dir))))
+                       (update :player-bat + (* bat-speed delayed-bat-dir))
+                       (update :opponent-bat + (* bat-speed opponent-bat-dir)))
+
         ;; When game is off set opp-bat to middle, set scores to zero and
         ;; don't speed up ball.
         game-state (if game-on?
@@ -75,15 +86,17 @@
                         (assoc :player-score 0)
                         (assoc :opponent-score 0)
                         (assoc :ball-speed ball-start-speed)))
+
         new-ball (mapv + ball (map #(* ball-speed %) ball-dir))
         new-ball-dir (calc-new-ball-dir game-state params)
         new-ball-speed (+ ball-speed speed-inc)
+        
         [final-ball 
          final-ball-dir
          final-ball-speed
          p-score-inc
          opp-score-inc] (check-reset size new-ball new-ball-dir 
-                                        new-ball-speed ball-start-speed)]
+                                     new-ball-speed ball-start-speed)]
     (-> game-state
       (assoc :game-on? game-on?)
       (assoc :ball final-ball)
@@ -98,10 +111,10 @@
         {:as s-state :keys [host?]} @server-state]
     (send-state-to-server! new-p-state)
     (if host?
+      ;; Host evaluates game state.
       (make-updates new-p-state s-state)
-      (-> new-p-state 
-          (into (dissoc s-state :host?))
-          (update :player-bat + (* bat-speed bat-dir))))))
+      ;; Non-host just draws state from server.
+      (into player-state s-state))))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)
@@ -119,21 +132,9 @@
   (q/text-num player-score p-width p-opp-height)
   (q/text-num opponent-score opp-width p-opp-height)))
 
-(defn draw-bats [{:keys [player-bat opponent-bat]}]
-  ;; Put new val first in coll!!
-  (swap! delay-atom conj player-bat)
-  (let [half-width (/ (q/width) 2)
-        prev-moves @delay-atom]
-    (when (= (count prev-moves) frame-delay)
-      ;; Remove oldest val.
-      (swap! delay-atom butlast))
-    ;; Draw bats. Player bat is drawn frame-delay frames late.
-    (q/rect (- half-width bat-width) (last prev-moves) bat-width bat-height)
-    (q/rect (- half-width) opponent-bat bat-width bat-height)))
-
-;;(defn draw-bats [{:keys [player-bat opponent-bat]}]
-;;  (q/rect (- (/ (q/width) 2) bat-width) player-bat bat-width bat-height)
-;;  (q/rect (- (/ (q/width) 2)) opponent-bat bat-width bat-height))
+(defn draw-bats [{:keys [player-bat opponent-bat host?]}]
+  (q/rect (- (/ (q/width) 2)) opponent-bat bat-width bat-height)
+  (q/rect (- (/ (q/width) 2) bat-width) player-bat bat-width bat-height))
 
 (defn draw-state [{:as state :keys [ball game-on?]}]
   (q/background background-color)

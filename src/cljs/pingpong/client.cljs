@@ -1,7 +1,7 @@
 (ns pingpong.client
-  (:require [taoensso.sente :as sente]))
+  (:require [taoensso.sente :as sente :refer [cb-success?]]))
 
-;; Sente channels --->
+;;; Sente channels --->
 (let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" {:type :auto})]
 
@@ -23,43 +23,46 @@
   [(- (first v)) (second v)])
 
 
-;; Send state to server. What comes back depends on is client host.
+;; Send state to server.
 (defn send-state-to-server!
-  [{:keys [ball ball-dir player-bat player-bat-dir 
+  [{:keys [ball player-bat opponent-bat player-bat-dir 
            player-score opponent-score]}]
   (let [host? (:host? @server-state)
         msg (if host?
-              [(reverse-x ball) player-bat opponent-score player-score]
-              [player-bat player-bat-dir])]
+              ;; Host sends lot's of things.
+              [(reverse-x ball) opponent-bat player-bat
+               opponent-score player-score]
+              ;; Non-host sends only bat-dir.
+              player-bat-dir)]
     (chsk-send! 
       [:pingpong/state msg]
 
-      ;; Timeout important!!!
+      ;; Timeout, important!!!
       250
 
       (fn [reply]
-        (when (sente/cb-success? reply)
+        (when (cb-success? reply)
           (if host?
-            (when (= (count reply) 2)
+            (when (number? reply)
               (swap! server-state into {:game-on? true
-                                        :opponent-bat (first reply)
-                                        :opponent-bat-dir (second reply)}))
-            (when (= (count reply) 4)
+                                        :opponent-bat-dir reply}))
+            (when (= (count reply) 5)
               (swap! server-state into {:game-on? true
                                         :ball (first reply)
-                                        :opponent-bat (second reply)
-                                        :player-score (nth reply 2) 
-                                        :opponent-score (nth reply 3)}))))))))
+                                        :player-bat (second reply)
+                                        :opponent-bat (nth reply 2)
+                                        :player-score (nth reply 3) 
+                                        :opponent-score (nth reply 4)}))))))))
 
 
-;; Event handler --->
+;;; Event handler --->
 (defmulti event :id)
 
 (defmethod event :default [{:keys [event]}]
   (prn "Default client" event))
 
 
-;; This msg from server determines is client host.
+;; This msg from server determines is client host in game.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
     :pingpong/host? (do (swap! server-state assoc :host? (second ?data))
