@@ -5,7 +5,8 @@
             [ring.util.response :refer [response]]
             [taoensso.sente :as sente]
             [taoensso.sente.server-adapters.http-kit :refer [get-sch-adapter]]
-            [pingpong.model :as model :refer [follow-games last-changed-uid]]))
+            [pingpong.model :as model :refer [follow-games last-changed-uid
+                                              make-p1-state make-p2-state]]))
 
 
 ;;; Sente channels --->
@@ -17,8 +18,8 @@
 
   (def ring-ajax-post                ajax-post-fn)
   (def ring-ajax-get-or-ws-handshake ajax-get-or-ws-handshake-fn)
-  (def ch-chsk                       ch-recv);; ChannelSocket's receive channel
-  (def chsk-send!                    send-fn);; ChannelSocket's send API fn
+  (def ch-chsk                       ch-recv); ChannelSocket's receive channel
+  (def chsk-send!                    send-fn); ChannelSocket's send API fn
   (def connected-uids                connected-uids)); Watchable, read-only atom
 
 
@@ -41,17 +42,18 @@
            (fn [_ _ _ p1-uid]
             (let [games @follow-games
                   p1 (get games p1-uid)
+                  p1-host? (:host? p1)
                   p1-state (:state p1)
                   p2-uid (:opp-uid p1)
                   p1-callback (:callback p1)]
-              (when p2-uid
+              (when (and p1-host? p2-uid)
                 (let [p2 (get games p2-uid)
                       p2-state (:state p2)
                       p2-callback (:callback p2)]
                   ;; Server waits both players before sending new states.
                   (when (and p1-state p2-state)
-                    (p1-callback p2-state)
-                    (p2-callback p1-state)
+                    (p1-callback (make-p1-state p1-state p2-state))
+                    (p2-callback (make-p2-state p1-state p2-state))
                     ;; Reset states.
                     (swap! follow-games assoc-in [p1-uid :state] nil)
                     (swap! follow-games assoc-in [p2-uid :state] nil)))))))
@@ -69,21 +71,19 @@
 
 ;; Put new client to game.
 (defmethod event :chsk/uidport-open [{:keys [uid]}]
-  (model/uid-to-game! uid chsk-send!)
   (prn "Client added to game" uid)
-  ;; For debug
-  (prn @follow-games))
+  (model/uid-to-game! uid chsk-send!))
 
 
 ;; Remove offline client from game.
 (defmethod event :chsk/uidport-close [{:keys [uid]}]
+  (prn "Client removed from game" uid)
   (let [{:keys [opp-uid]} (get @follow-games uid)]
     ;; Remove client
     (swap! follow-games dissoc uid)
     (when opp-uid
       ;; If opponent exists move her to another game.
-      (model/uid-to-game! opp-uid chsk-send!)))
-  (prn "Client removed from game" uid))
+      (model/uid-to-game! opp-uid chsk-send!))))
 
 
 ;; States from players.

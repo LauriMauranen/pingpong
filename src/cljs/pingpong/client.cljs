@@ -1,6 +1,7 @@
 (ns pingpong.client
   (:require [taoensso.sente :as sente :refer [cb-success?]]))
 
+
 ;;; Sente channels --->
 (let [{:keys [chsk ch-recv send-fn state]}
       (sente/make-channel-socket! "/chsk" {:type :auto})]
@@ -11,48 +12,48 @@
   (def chsk-state state))   ;; Watchable, read-only atom
 
 
+(def bat-height 100)
+(def ball-start-speed 10)
+
+
 ;; Here we store server state.
-(defonce server-state (atom {:host? true
-                             :game-on? false
-                             :opponent-bat 0
-                             :opponent-bat-dir 0}))
-
-
-;; Reverse x-axis because both players see's themselves on right.
-(defn reverse-x [v]
-  [(- (first v)) (second v)])
+(defonce server-state (atom {:ball [0 0]
+                             ;; Random direction for ball.
+                             :ball-dir [(dec (* 2 (rand-int 2))) 0]
+                             :ball-speed ball-start-speed
+                             :player-bat (- (/ bat-height 2))
+                             :opponent-bat  (- (/ bat-height 2))
+                             :player-bat-dir 0
+                             :opponent-bat-dir 0
+                             :player-score 0
+                             :opponent-score 0
+                             :game-on? false}))
 
 
 ;; Send state to server.
 (defn send-state-to-server!
-  [{:keys [ball player-bat opponent-bat player-bat-dir 
-           player-score opponent-score]}]
-  (let [host? (:host? @server-state)
-        msg (if host?
-              ;; Host sends lot's of things.
-              [(reverse-x ball) opponent-bat player-bat
-               opponent-score player-score]
-              ;; Non-host sends only bat-dir.
-              player-bat-dir)]
-    (chsk-send! 
-      [:pingpong/state msg]
-
-      ;; Timeout, important!!!
-      250
-
-      (fn [reply]
-        (when (cb-success? reply)
-          (if host?
-            (when (number? reply)
-              (swap! server-state into {:game-on? true
-                                        :opponent-bat-dir reply}))
-            (when (= (count reply) 5)
-              (swap! server-state into {:game-on? true
-                                        :ball (first reply)
-                                        :player-bat (second reply)
-                                        :opponent-bat (nth reply 2)
-                                        :player-score (nth reply 3) 
-                                        :opponent-score (nth reply 4)}))))))))
+  [{:keys [ball ball-dir ball-speed player-bat 
+           player-bat-dir player-score opponent-score]}]
+  (chsk-send!
+    [:pingpong/state [ball 
+                      ball-dir 
+                      ball-speed 
+                      player-bat 
+                      player-bat-dir 
+                      player-score 
+                      opponent-score]]
+    250
+    (fn [reply]
+      (when (cb-success? reply)
+        (swap! server-state into (zipmap [:ball
+                                          :ball-dir
+                                          :ball-speed
+                                          :player-bat
+                                          :player-bat-dir
+                                          :opponent-bat
+                                          :opponent-bat-dir
+                                          :player-score
+                                          :opponent-score] reply))))))
 
 
 ;;; Event handler --->
@@ -62,11 +63,10 @@
   (prn "Default client" event))
 
 
-;; This msg from server determines is client host in game.
+;; This msg from server determines is game on.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
-    :pingpong/host? (do (swap! server-state assoc :host? (second ?data))
-                        (swap! server-state assoc :game-on? false))
+    :pingpong/game-on? (swap! server-state assoc :game-on? (second ?data))
     (prn "Receive" ev-msg)))
 
 

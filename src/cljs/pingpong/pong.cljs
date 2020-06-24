@@ -2,7 +2,8 @@
   (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]
             [pingpong.ping2 :refer [check-reset calc-bat-dir calc-new-ball-dir]]
-            [pingpong.client :refer [server-state send-state-to-server!]]))
+            [pingpong.client :refer [server-state send-state-to-server!
+                                     ball-start-speed bat-height]]))
 
 (def background-color 0)
 (def bat-color 255)
@@ -10,13 +11,8 @@
 (def size [500 500])
 (def ball-diameter 30)
 (def bat-width 35)
-(def bat-height 100)
-(def ball-start-speed 10) ;; 5
-(def speed-inc 0.01) ;; 0.005
-(def bat-speed 10) ;; 6
-
-(def bat-delay 7)
-(defonce delay-atom (atom '()))
+(def speed-inc 0.01)
+(def bat-speed 10)
 
 (def params {:size size
              :bat-width bat-width
@@ -24,21 +20,8 @@
              :ball-diameter ball-diameter})
 
 (defn setup []
-  (q/frame-rate 40)
-  {:ball [0 0]
-   :ball-dir [(dec (* 2 (rand-int 2))) 0] ;; Random direction.
-   :ball-speed ball-start-speed
-   :player-bat (- (/ bat-height 2))
-   :opponent-bat  (- (/ bat-height 2))
-   :player-bat-dir 0
-   :opponent-bat-dir 0
-   :player-score 0
-   :opponent-score 0
-   :up-pressed? false
-   :down-pressed? false
-   :last-pressed nil
-   :game-on? false
-   :host? true})
+  (q/frame-rate 60)
+  @server-state)
 
 (defn key-pressed [state event]
   (case (:key event)
@@ -56,41 +39,15 @@
     :k (assoc state :up-pressed? false)
     state))
 
-;; Delay host bat movement because non-host player has internet lag.
-(defn delay-p-bat! [bat-dir]
-  (swap! delay-atom conj bat-dir)
-  (let [prev-moves @delay-atom]
-    (if (= (count prev-moves) bat-delay)
-      ;; Remove and return oldest move.
-      (do (swap! delay-atom butlast)
-          (last prev-moves))
-      ;; Or return 0 so bat doesn't move.
-      0)))
-
-(defn make-updates 
-  [{:as player-state :keys [ball ball-speed ball-dir player-bat-dir]}
-   {:keys [opponent-bat-dir game-on?]}]
-  (let [delayed-bat-dir player-bat-dir ;;(delay-p-bat! player-bat-dir)
-        game-state (-> player-state
-                       (assoc :player-bat-dir delayed-bat-dir)
-                       (assoc :opponent-bat-dir opponent-bat-dir)
-                       (update :player-bat + (* bat-speed delayed-bat-dir))
-                       (update :opponent-bat + (* bat-speed opponent-bat-dir)))
-
-        ;; When game is off set opp-bat to middle, set scores to zero and
-        ;; don't speed up ball.
-        game-state (if game-on?
-                    game-state
-                    (-> game-state 
-                        (assoc :opponent-bat (- (/ bat-height 2)))
-                        (assoc :player-score 0)
-                        (assoc :opponent-score 0)
-                        (assoc :ball-speed ball-start-speed)))
-
+(defn make-updates
+  [{:as s-state :keys [ball ball-dir ball-speed player-bat player-bat-dir
+                       opponent-bat-dir game-on?]}]
+  (let [game-state (-> s-state
+                    (update :player-bat + (* bat-speed player-bat-dir))
+                    (update :opponent-bat + (* bat-speed opponent-bat-dir)))
         new-ball (mapv + ball (map #(* ball-speed %) ball-dir))
         new-ball-dir (calc-new-ball-dir game-state params)
         new-ball-speed (+ ball-speed speed-inc)
-        
         [final-ball 
          final-ball-dir
          final-ball-speed
@@ -98,23 +55,20 @@
          opp-score-inc] (check-reset size new-ball new-ball-dir 
                                      new-ball-speed ball-start-speed)]
     (-> game-state
-      (assoc :game-on? game-on?)
       (assoc :ball final-ball)
       (assoc :ball-dir final-ball-dir)
       (assoc :ball-speed final-ball-speed)
       (update :player-score + p-score-inc)
       (update :opponent-score + opp-score-inc))))
 
-(defn update-state [player-state]
-  (let [bat-dir (calc-bat-dir player-state)
-        new-p-state (assoc player-state :player-bat-dir bat-dir)
-        {:as s-state :keys [host?]} @server-state]
-    (send-state-to-server! new-p-state)
-    (if host?
-      ;; Host evaluates game state.
-      (make-updates new-p-state s-state)
-      ;; Non-host just draws state from server.
-      (into player-state s-state))))
+(defn update-state [state]
+  (let [bat-dir (calc-bat-dir state)
+        {:as s-state :keys [game-on?]} @server-state
+        game-state (if game-on?
+                    s-state
+                    (update state :player-bat + (* bat-speed bat-dir)))]
+    (send-state-to-server! (assoc state :player-bat-dir bat-dir))
+    (make-updates (into state game-state))))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)
