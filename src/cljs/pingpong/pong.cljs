@@ -24,7 +24,7 @@
              :ball-diameter ball-diameter})
 
 (defn setup []
-  (q/frame-rate 60)
+  (q/frame-rate 30)
   {:ball [0 0]
    :ball-dir [(dec (* 2 (rand-int 2))) 0] ;; Random direction.
    :ball-speed ball-start-speed
