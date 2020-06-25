@@ -42,11 +42,10 @@
            (fn [_ _ _ p1-uid]
             (let [games @follow-games
                   p1 (get games p1-uid)
-                  p1-host? (:host? p1)
                   p1-state (:state p1)
                   p2-uid (:opp-uid p1)
                   p1-callback (:callback p1)]
-              (when (and p1-host? p2-uid)
+              (when p2-uid
                 (let [p2 (get games p2-uid)
                       p2-state (:state p2)
                       p2-callback (:callback p2)]

@@ -13,7 +13,7 @@
 
 
 (def bat-height 100)
-(def ball-start-speed 10)
+(def ball-start-speed 5)
 
 
 ;; Here we store server state.
@@ -42,9 +42,10 @@
                       player-bat-dir 
                       player-score 
                       opponent-score]]
-    250
+    250 ;; Timeout
     (fn [reply]
       (when (cb-success? reply)
+        (swap! server-state assoc :state-used? false)
         (swap! server-state into (zipmap [:ball
                                           :ball-dir
                                           :ball-speed

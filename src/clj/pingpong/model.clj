@@ -1,5 +1,4 @@
-(ns pingpong.model
-  (:require [clojure.set :refer [difference]]))
+(ns pingpong.model)
 
 (defonce follow-games (atom {}))
 
@@ -66,8 +65,7 @@
     (loop [u-list uids]
       (if (empty? u-list)
         (do ;; No other players or all games are full.
-          (swap! follow-games assoc client-uid {:host? true
-                                                :opp-uid nil
+          (swap! follow-games assoc client-uid {:opp-uid nil
                                                 :state nil
                                                 :callback nil})
           ;; Tell client she is host.
@@ -78,8 +76,7 @@
             (recur (rest u-list))
             (do ;; Opponent found. Change also opponents state.
               (swap! follow-games assoc-in [uid :opp-uid] client-uid)
-              (swap! follow-games assoc client-uid {:host? false
-                                                    :opp-uid uid
+              (swap! follow-games assoc client-uid {:opp-uid uid
                                                     :state nil
                                                     :callback nil})
               ;; Game on!

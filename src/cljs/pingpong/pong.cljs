@@ -11,8 +11,11 @@
 (def size [500 500])
 (def ball-diameter 30)
 (def bat-width 35)
-(def speed-inc 0.01)
-(def bat-speed 10)
+(def speed-inc 0.005)
+(def bat-speed 6)
+(def ball-error 70)
+(def speed-error 1)
+(def bat-error 70)
 
 (def params {:size size
              :bat-width bat-width
@@ -39,12 +42,39 @@
     :k (assoc state :up-pressed? false)
     state))
 
+(defn distance [v1 v2]
+  (q/dist (first v1) (first v2) (second v1) (second v2)))
+
+(defn check-and-fix-errors 
+  [{:as p-state :keys [ball ball-dir ball-speed player-bat player-bat-dir]} 
+   s-state]
+  (let [s-ball (mapv + (:ball s-state) (map #(* ball-speed %) ball-dir))
+        s-bat (+ (:player-bat s-state) (* bat-speed player-bat-dir))
+        ball-err (distance ball s-ball)
+        speed-err (q/abs (- ball-speed (:ball-speed s-state)))
+        p-err (q/abs (- player-bat s-bat))]
+    (cond-> p-state
+      (> ball-err ball-error)
+        (assoc :ball s-ball)
+      (> speed-err speed-error) 
+        (assoc :ball-speed (:ball-speed s-state))
+      (> p-err bat-error) 
+        (assoc :player-bat s-bat))))
+
 (defn make-updates
-  [{:as s-state :keys [ball ball-dir ball-speed player-bat player-bat-dir
-                       opponent-bat-dir game-on?]}]
-  (let [game-state (-> s-state
+  [{:as p-state :keys [ball ball-speed]}
+   {:as s-state :keys [ball-dir player-bat-dir opponent-bat-dir game-on?
+                       player-score opponent-score]}]
+  (let [game-state (if game-on?
+                     (check-and-fix-errors p-state s-state)
+                     p-state)
+        game-state (-> game-state
                     (update :player-bat + (* bat-speed player-bat-dir))
-                    (update :opponent-bat + (* bat-speed opponent-bat-dir)))
+                    (update :opponent-bat + (* bat-speed opponent-bat-dir))
+                    (assoc :player-bat-dir player-bat-dir)
+                    (assoc :opponent-bat-dir opponent-bat-dir)
+                    (assoc :player-score player-score)
+                    (assoc :opponent-score opponent-score))
         new-ball (mapv + ball (map #(* ball-speed %) ball-dir))
         new-ball-dir (calc-new-ball-dir game-state params)
         new-ball-speed (+ ball-speed speed-inc)
@@ -55,20 +85,21 @@
          opp-score-inc] (check-reset size new-ball new-ball-dir 
                                      new-ball-speed ball-start-speed)]
     (-> game-state
+      (assoc :game-on? game-on?)
       (assoc :ball final-ball)
       (assoc :ball-dir final-ball-dir)
       (assoc :ball-speed final-ball-speed)
       (update :player-score + p-score-inc)
       (update :opponent-score + opp-score-inc))))
 
-(defn update-state [state]
-  (let [bat-dir (calc-bat-dir state)
+(defn update-state [p-state]
+  (let [bat-dir (calc-bat-dir p-state)
         {:as s-state :keys [game-on?]} @server-state
         game-state (if game-on?
                     s-state
-                    (update state :player-bat + (* bat-speed bat-dir)))]
-    (send-state-to-server! (assoc state :player-bat-dir bat-dir))
-    (make-updates (into state game-state))))
+                    (assoc s-state :player-bat-dir bat-dir))]
+    (send-state-to-server! (assoc p-state :player-bat-dir bat-dir))
+    (make-updates p-state game-state)))
 
 (defn draw-keys []
   (let [bottom (/ (q/height) 2)
