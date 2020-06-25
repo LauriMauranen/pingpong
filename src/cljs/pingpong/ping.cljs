@@ -1,4 +1,4 @@
-(ns pingpong.ping2
+(ns pingpong.ping
   (:require [quil.core :as q :include-macros true]))
 
 (defn check-bat-player [{:keys [ball ball-dir player-bat ball-speed]} 
@@ -90,7 +90,7 @@
   (let [p-score? (< (first ball) (- (/ (first size) 2)))
         opp-score? (> (first ball) (/ (first size) 2))]
     (if p-score? 
-      [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed 1 0]
+      [1 0]
       (if opp-score?
-        [[0 0] [(dec (* 2 (rand-int 2))) 0] ball-start-speed 0 1]
-        [(round ball 100) ball-dir ball-speed]))))
+        [0 1]
+        [nil nil]))))

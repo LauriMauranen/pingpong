@@ -1,7 +1,7 @@
 (ns pingpong.pong
   (:require [quil.core :as q :include-macros true]
             [quil.middleware :as m]
-            [pingpong.ping2 :refer [check-reset calc-bat-dir calc-new-ball-dir]]
+            [pingpong.ping :refer [check-reset calc-bat-dir calc-new-ball-dir]]
             [pingpong.client :refer [server-state send-state-to-server!
                                      ball-start-speed bat-height]]))
 
@@ -13,9 +13,9 @@
 (def bat-width 35)
 (def speed-inc 0.005)
 (def bat-speed 6)
-(def ball-error 70)
+(def ball-error 5)
 (def speed-error 1)
-(def bat-error 70)
+(def bat-error 5)
 
 (def params {:size size
              :bat-width bat-width
@@ -48,22 +48,24 @@
 (defn check-and-fix-errors 
   [{:as p-state :keys [ball ball-dir ball-speed player-bat player-bat-dir]} 
    s-state]
-  (let [s-ball (mapv + (:ball s-state) (map #(* ball-speed %) ball-dir))
-        s-bat (+ (:player-bat s-state) (* bat-speed player-bat-dir))
+  (let [s-speed (:ball-speed s-state)
+        s-ball (mapv + (:ball s-state) (map #(* s-speed %) 
+                                            (:ball-dir s-state)))
+        s-bat (+ (:player-bat s-state) (* bat-speed (:player-bat-dir s-state)))
         ball-err (distance ball s-ball)
-        speed-err (q/abs (- ball-speed (:ball-speed s-state)))
+        speed-err (q/abs (- ball-speed s-speed))
         p-err (q/abs (- player-bat s-bat))]
     (cond-> p-state
       (> ball-err ball-error)
         (assoc :ball s-ball)
       (> speed-err speed-error) 
-        (assoc :ball-speed (:ball-speed s-state))
+        (assoc :ball-speed s-speed)
       (> p-err bat-error) 
         (assoc :player-bat s-bat))))
 
 (defn make-updates
-  [{:as p-state :keys [ball ball-speed]}
-   {:as s-state :keys [ball-dir player-bat-dir opponent-bat-dir game-on?
+  [{:as p-state :keys [ball ball-dir ball-speed]}
+   {:as s-state :keys [player-bat-dir opponent-bat-dir game-on?
                        player-score opponent-score]}]
   (let [game-state (if game-on?
                      (check-and-fix-errors p-state s-state)
@@ -72,25 +74,26 @@
                     (update :player-bat + (* bat-speed player-bat-dir))
                     (update :opponent-bat + (* bat-speed opponent-bat-dir))
                     (assoc :player-bat-dir player-bat-dir)
-                    (assoc :opponent-bat-dir opponent-bat-dir)
-                    (assoc :player-score player-score)
-                    (assoc :opponent-score opponent-score))
+                    (assoc :opponent-bat-dir opponent-bat-dir))
         new-ball (mapv + ball (map #(* ball-speed %) ball-dir))
         new-ball-dir (calc-new-ball-dir game-state params)
         new-ball-speed (+ ball-speed speed-inc)
-        [final-ball 
-         final-ball-dir
-         final-ball-speed
-         p-score-inc
+        [p-score-inc
          opp-score-inc] (check-reset size new-ball new-ball-dir 
                                      new-ball-speed ball-start-speed)]
-    (-> game-state
-      (assoc :game-on? game-on?)
-      (assoc :ball final-ball)
-      (assoc :ball-dir final-ball-dir)
-      (assoc :ball-speed final-ball-speed)
-      (update :player-score + p-score-inc)
-      (update :opponent-score + opp-score-inc))))
+    (if p-score-inc
+      (-> game-state
+        (assoc :game-on? game-on?)
+        (assoc :ball [0 0])
+        (assoc :ball-dir [(dec (* 2 (rand-int 2))) 0])
+        (assoc :ball-speed ball-start-speed)
+        (update :player-score + p-score-inc)
+        (update :opponent-score + opp-score-inc))
+      (-> game-state
+        (assoc :game-on? game-on?)
+        (assoc :ball new-ball)
+        (assoc :ball-dir new-ball-dir)
+        (assoc :ball-speed new-ball-speed)))))
 
 (defn update-state [p-state]
   (let [bat-dir (calc-bat-dir p-state)

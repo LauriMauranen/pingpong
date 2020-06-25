@@ -45,7 +45,6 @@
     250 ;; Timeout
     (fn [reply]
       (when (cb-success? reply)
-        (swap! server-state assoc :state-used? false)
         (swap! server-state into (zipmap [:ball
                                           :ball-dir
                                           :ball-speed
