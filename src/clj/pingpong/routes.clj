@@ -42,6 +42,7 @@
            (fn [_ _ _ p1-uid]
             (let [games @follow-games
                   p1 (get games p1-uid)
+                  p1-host? (:host? p1)
                   p1-state (:state p1)
                   p2-uid (:opp-uid p1)
                   p1-callback (:callback p1)]
@@ -50,7 +51,7 @@
                       p2-state (:state p2)
                       p2-callback (:callback p2)]
                   ;; Server waits both players before sending new states.
-                  (when (and p1-state p2-state)
+                  (when (and p1-host? p2-state)
                     (p1-callback (make-p1-state p1-state p2-state))
                     (p2-callback (make-p2-state p1-state p2-state))
                     ;; Reset states.

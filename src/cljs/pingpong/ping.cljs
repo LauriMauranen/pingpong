@@ -80,17 +80,18 @@
     
     :else ball-dir))
 
-(defn round [v multiplier]
-  (let [f #(/ (.round js/Math (* (+ % 0.0001) multiplier)) multiplier)]
+(defn round [v]
+  (let [f #(/ (.round js/Math (* (+ % 0.0001) 1000)) 1000)]
     (if (number? v)
       (f v)
       (mapv f v))))
 
 (defn check-reset [size ball ball-dir ball-speed ball-start-speed]
   (let [p-score? (< (first ball) (- (/ (first size) 2)))
-        opp-score? (> (first ball) (/ (first size) 2))]
+        opp-score? (> (first ball) (/ (first size) 2))
+        rand-dir [(dec (* 2 (rand-int 2))) 0]]
     (if p-score? 
-      [1 0]
+      [[0 0] rand-dir ball-start-speed 1 0]
       (if opp-score?
-        [0 1]
-        [nil nil]))))
+        [[0 0] rand-dir ball-start-speed 0 1]
+        [(round ball) (round ball-dir) (round ball-speed) 0 0]))))

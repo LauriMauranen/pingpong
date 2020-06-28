@@ -27,19 +27,20 @@
                              :opponent-bat-dir 0
                              :player-score 0
                              :opponent-score 0
-                             :game-on? false}))
+                             :game-on? false
+                             :host? true}))
 
 
 ;; Send state to server.
 (defn send-state-to-server!
-  [{:keys [ball ball-dir ball-speed player-bat 
-           player-bat-dir player-score opponent-score]}]
+  [{:keys [ball ball-dir ball-speed player-bat player-bat-dir 
+           player-score opponent-score]}]
   (chsk-send!
     [:pingpong/state [ball 
                       ball-dir 
                       ball-speed 
                       player-bat 
-                      player-bat-dir 
+                      player-bat-dir
                       player-score 
                       opponent-score]]
     250 ;; Timeout
@@ -63,10 +64,12 @@
   (prn "Default client" event))
 
 
-;; This msg from server determines is game on.
+;; This msg from server determines is game on and is client game host.
 (defmethod event :chsk/recv [{:as ev-msg :keys [?data]}]
   (case (first ?data)
     :pingpong/game-on? (swap! server-state assoc :game-on? (second ?data))
+    :pingpong/host-yes! (swap! server-state assoc :host? true)
+    :pingpong/not-host! (swap! server-state assoc :host? false)
     (prn "Receive" ev-msg)))
 
 

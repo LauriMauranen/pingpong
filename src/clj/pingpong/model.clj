@@ -65,20 +65,24 @@
     (loop [u-list uids]
       (if (empty? u-list)
         (do ;; No other players or all games are full.
-          (swap! follow-games assoc client-uid {:opp-uid nil
+          (swap! follow-games assoc client-uid {:host? true
+                                                :opp-uid nil
                                                 :state nil
                                                 :callback nil})
           ;; Tell client she is host.
-          (chsk-send! client-uid [:pingpong/game-on? false]))
+          (chsk-send! client-uid [:pingpong/game-on? false])
+          (chsk-send! client-uid [:pingpong/host-yes! nil]))
         (let [uid (first u-list)
               {:keys [opp-uid]} (get games uid)]
           (if opp-uid
             (recur (rest u-list))
             (do ;; Opponent found. Change also opponents state.
               (swap! follow-games assoc-in [uid :opp-uid] client-uid)
-              (swap! follow-games assoc client-uid {:opp-uid uid
+              (swap! follow-games assoc client-uid {:host? false
+                                                    :opp-uid uid
                                                     :state nil
                                                     :callback nil})
               ;; Game on!
               (chsk-send! uid [:pingpong/game-on? true])
-              (chsk-send! client-uid [:pingpong/game-on? true]))))))))
+              (chsk-send! client-uid [:pingpong/game-on? true])
+              (chsk-send! client-uid [:pingpong/not-host! nil]))))))))
