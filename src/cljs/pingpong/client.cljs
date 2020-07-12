@@ -18,7 +18,6 @@
 
 ;; Here we store server state.
 (defonce server-state (atom {:ball [0 0]
-                             ;; Random direction for ball.
                              :ball-dir [(dec (* 2 (rand-int 2))) 0]
                              :ball-speed ball-start-speed
                              :player-bat (- (/ bat-height 2))
@@ -28,7 +27,8 @@
                              :player-score 0
                              :opponent-score 0
                              :game-on? false
-                             :host? true}))
+                             :host? true
+                             :state-used? false}))
 
 
 ;; Send state to server.
@@ -43,7 +43,7 @@
                       player-bat-dir
                       player-score 
                       opponent-score]]
-    250 ;; Timeout
+    200 ;; Timeout
     (fn [reply]
       (when (cb-success? reply)
         (swap! server-state into (zipmap [:ball
@@ -54,7 +54,8 @@
                                           :opponent-bat
                                           :opponent-bat-dir
                                           :player-score
-                                          :opponent-score] reply))))))
+                                          :opponent-score] reply))
+        (swap! server-state assoc :state-used? false)))))
 
 
 ;;; Event handler --->

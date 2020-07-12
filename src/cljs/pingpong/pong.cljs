@@ -11,11 +11,10 @@
 (def size [500 500])
 (def ball-diameter 30)
 (def bat-width 35)
-(def speed-inc 0.005)
+(def speed-inc 0)
 (def bat-speed 6)
-(def ball-error 1)
-(def speed-error 0.04)
-(def bat-error 10)
+(def ball-error 200)
+(def bat-error 30)
 
 (def params {:size size
              :bat-width bat-width
@@ -45,36 +44,38 @@
 (defn distance [v1 v2]
   (q/dist (first v1) (first v2) (second v1) (second v2)))
 
-(defn check-and-fix-errors [{:as state :keys [ball ball-speed]} s-state]
+(defn check-and-fix-errors 
+  [{:as state :keys [ball ball-speed player-bat]} s-state]
   (let [s-ball (:ball s-state)
-        s-speed (:ball-speed s-state)]
+        s-bat (:player-bat s-state)
+        s-speed (:ba1l-speed s-state)]
     (cond-> state
-      (> (distance ball s-ball) (* ball-speed ball-error))
+      (> (distance ball s-ball) ball-error)
         (assoc :ball s-ball)
-      (> (q/abs (- ball-speed s-speed)) speed-error) 
-        (assoc :ball-speed s-speed))))
+      (> (q/abs (- player-bat s-bat)) bat-error)
+        (assoc :player-bat s-bat))))
 
 (defn update-state [state]
   (send-state-to-server! state)
   (let [{:as s-state 
          :keys [player-bat-dir opponent-bat opponent-bat-dir player-score 
-                opponent-score game-on? host?]} @server-state
+                opponent-score game-on? host? state-used?]} @server-state
         
-        game-state (if (and game-on? (not host?))
-                    (check-and-fix-errors state s-state)
-                    state)
-        
-        game-state (if game-on?
-                     (-> game-state
-                      (update :player-bat + (* bat-speed player-bat-dir))
-                      (assoc :opponent-bat (+ opponent-bat 
-                                              (* bat-speed opponent-bat-dir)))
-                      (assoc :player-bat-dir player-bat-dir)
-                      (assoc :opponent-bat-dir opponent-bat-dir)
-;;                      (assoc :player-score player-score)
-;;                      (assoc :opponent-score opponent-score)
-                      )
-                     (-> game-state 
+        game-state (if game-on? 
+                    (if (not state-used?)
+                      (do (swap! server-state assoc :state-used? true)
+                        (-> (check-and-fix-errors state s-state)
+                          (update :player-bat + (* bat-speed player-bat-dir))
+                          (update :opponent-bat + (* bat-speed 
+                                                     opponent-bat-dir))
+                          (assoc :player-bat-dir player-bat-dir)
+                          (assoc :opponent-bat-dir opponent-bat-dir)))
+                      (-> state
+                        (update :player-bat + (* bat-speed 
+                                                 (:player-bat-dir state)))
+                        (update :opponent-bat + (* bat-speed 
+                                                   (:opponent-bat-dir state)))))
+                    (-> state
                       (update :player-bat + 
                               (* bat-speed (:player-bat-dir state)))
                       (assoc :player-score 0)
@@ -96,7 +97,7 @@
                                      ball-start-speed)
         
         [p-score opp-score] (if host?
-                              [(+ (:player-score game-state) p-score-inc) 
+                              [(+ (:player-score game-state) p-score-inc)
                                (+ (:opponent-score game-state) opp-score-inc)]
                               [player-score opponent-score])]
     (-> game-state
